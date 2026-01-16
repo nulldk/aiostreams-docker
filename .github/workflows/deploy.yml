@@ -56,4 +56,5 @@ jobs:
         if: steps.update_repo.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
         run: |
           git remote add beamup dokku@a.baby-beamup.club:${{ secrets.BEAMUP_APP_NAME }}
+          # Intentamos el push. Si falla por falta de env vars, Beamup las mantendrá del seteo manual previo.
           git push beamup main:master --force
