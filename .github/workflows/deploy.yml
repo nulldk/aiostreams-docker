@@ -20,9 +20,13 @@ jobs:
       - name: Get Latest Image Digest
         id: get_digest
         run: |
-          # Intentamos obtener el digest usando el API de manifiestos v2
-          # Si falla, usamos el digest de la primera capa como fallback (que cambia si cambia la imagen)
-          RESPONSE=$(curl -s -L -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+          # 1. Obtener un token de acceso anónimo para el repositorio
+          TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:viren070/aiostreams:pull" | jq -r .token)
+          
+          # 2. Obtener el manifiesto usando el token
+          RESPONSE=$(curl -s -L \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
             "https://ghcr.io/v2/viren070/aiostreams/manifests/latest")
           
           DIGEST=$(echo "$RESPONSE" | jq -r '.config.digest // .layers[0].digest // empty')
