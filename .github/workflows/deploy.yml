@@ -64,10 +64,14 @@ jobs:
         with:
           key: ${{ secrets.BEAMUP_SSH_KEY }}
           known_hosts: 'placeholder'
+          if_key_exists: replace
 
       - name: Add Beamup to Known Hosts
         if: steps.update_repo.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
-        run: ssh-keyscan a.baby-beamup.club >> ~/.ssh/known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H a.baby-beamup.club >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_rsa || true
 
       - name: Deploy to Beamup
         if: steps.update_repo.outputs.changed == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'push'
