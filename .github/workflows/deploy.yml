@@ -20,14 +20,25 @@ jobs:
       - name: Get Latest Image Digest
         id: get_digest
         run: |
-          TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:viren070/aiostreams:pull" | jq -r .token)
-          DIGEST=$(curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-            "https://ghcr.io/v2/viren070/aiostreams/manifests/latest" | jq -r '.config.digest')
+          DIGEST=$(curl -s "https://ghcr.io/v2/viren070/aiostreams/manifests/latest" \
+            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+            | jq -r '.config.digest // .layers[0].digest // empty')
+          
+          if [ -z "$DIGEST" ]; then
+            # Fallback a la API de tags si el manifest falla
+            DIGEST=$(curl -s "https://ghcr.io/v2/viren070/aiostreams/tags/list" | sha256sum | cut -d' ' -f1)
+          fi
+          
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
 
       - name: Update Digest File
         id: update_repo
         run: |
+          if [ -z "${{ steps.get_digest.outputs.digest }}" ]; then
+            echo "Error: Could not fetch digest"
+            exit 1
+          fi
+          
           echo "${{ steps.get_digest.outputs.digest }}" > latest_digest.txt
           
           if [[ -n "$(git status --porcelain)" ]]; then
