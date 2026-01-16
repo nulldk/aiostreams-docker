@@ -20,13 +20,16 @@ jobs:
       - name: Get Latest Image Digest
         id: get_digest
         run: |
-          DIGEST=$(curl -s "https://ghcr.io/v2/viren070/aiostreams/manifests/latest" \
-            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-            | jq -r '.config.digest // .layers[0].digest // empty')
+          # Intentamos obtener el digest usando el API de manifiestos v2
+          # Si falla, usamos el digest de la primera capa como fallback (que cambia si cambia la imagen)
+          RESPONSE=$(curl -s -L -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+            "https://ghcr.io/v2/viren070/aiostreams/manifests/latest")
           
-          if [ -z "$DIGEST" ]; then
-            # Fallback a la API de tags si el manifest falla
-            DIGEST=$(curl -s "https://ghcr.io/v2/viren070/aiostreams/tags/list" | sha256sum | cut -d' ' -f1)
+          DIGEST=$(echo "$RESPONSE" | jq -r '.config.digest // .layers[0].digest // empty')
+          
+          if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
+            echo "Error: Could not fetch digest. Response was: $RESPONSE"
+            exit 1
           fi
           
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
@@ -34,18 +37,16 @@ jobs:
       - name: Update Digest File
         id: update_repo
         run: |
-          if [ -z "${{ steps.get_digest.outputs.digest }}" ]; then
-            echo "Error: Could not fetch digest"
-            exit 1
-          fi
-          
           echo "${{ steps.get_digest.outputs.digest }}" > latest_digest.txt
           
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
           if [[ -n "$(git status --porcelain)" ]]; then
-            git config --global user.name 'github-actions[bot]'
-            git config --global user.email 'github-actions[bot]@users.noreply.github.com'
             git add latest_digest.txt
             git commit -m "Update image digest to ${{ steps.get_digest.outputs.digest }}"
+            # Usamos rebase para evitar conflictos si el repo cambió mientras el workflow corría
+            git pull --rebase origin main
             git push origin main
             echo "changed=true" >> $GITHUB_OUTPUT
           else
