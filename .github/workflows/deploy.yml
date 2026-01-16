@@ -23,13 +23,14 @@ jobs:
           # 1. Obtener un token de acceso anónimo para el repositorio
           TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:viren070/aiostreams:pull" | jq -r .token)
           
-          # 2. Obtener el manifiesto usando el token
+          # 2. Obtener el manifiesto usando el token y aceptando formatos OCI
           RESPONSE=$(curl -s -L \
             -H "Authorization: Bearer $TOKEN" \
-            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+            -H "Accept: application/vnd.docker.distribution.manifest.v2+json,application/vnd.oci.image.index.v1+json" \
             "https://ghcr.io/v2/viren070/aiostreams/manifests/latest")
           
-          DIGEST=$(echo "$RESPONSE" | jq -r '.config.digest // .layers[0].digest // empty')
+          # En OCI Index, el digest suele estar en .manifests[0].digest o en el header Docker-Content-Digest
+          DIGEST=$(echo "$RESPONSE" | jq -r '.config.digest // .manifests[0].digest // .layers[0].digest // empty')
           
           if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
             echo "Error: Could not fetch digest. Response was: $RESPONSE"
